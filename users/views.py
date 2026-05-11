@@ -1,16 +1,17 @@
 """Представления приложения users."""
 
 import json
+from http import HTTPStatus
 
 from django.contrib.auth import login, logout
 from django.contrib.auth.decorators import login_required
-from django.core.paginator import Paginator
 from django.http import JsonResponse
 from django.shortcuts import render, redirect, get_object_or_404
 from django.views.decorators.http import require_POST
 
 from .forms import RegisterForm, LoginForm, EditProfileForm, ChangePasswordForm
 from .models import User, Skill
+from .utils import paginate_queryset
 
 
 def register(request):
@@ -18,12 +19,8 @@ def register(request):
     if request.method == 'POST':
         form = RegisterForm(request.POST)
         if form.is_valid():
-            User.objects.create_user(
-                email=form.cleaned_data['email'],
-                name=form.cleaned_data['name'],
-                surname=form.cleaned_data['surname'],
-                password=form.cleaned_data['password'],
-            )
+            # Замечание 1: создание пользователя перенесено в форму
+            form.save()
             return redirect('users:login')
     else:
         form = RegisterForm()
@@ -96,8 +93,8 @@ def users_list(request):
         users = users.filter(skills__name=skill_name)
         query_prefix = f'skill={skill_name}&'
 
-    paginator = Paginator(users, 12)
-    page_obj = paginator.get_page(request.GET.get('page'))
+    # Замечание 2, 3: используем вынесенную функцию пагинации
+    page_obj = paginate_queryset(users, request)
 
     return render(request, 'users/participants.html', {
         'page_obj': page_obj,
@@ -120,7 +117,8 @@ def add_skill(request, user_id):
     """Добавляет навык в профиль пользователя."""
     user = get_object_or_404(User, pk=user_id)
     if request.user != user:
-        return JsonResponse({'error': 'Forbidden'}, status=403)
+        # Замечание 4: используем HTTPStatus вместо числового кода
+        return JsonResponse({'error': 'Forbidden'}, status=HTTPStatus.FORBIDDEN)
 
     try:
         data = json.loads(request.body)
@@ -137,9 +135,14 @@ def add_skill(request, user_id):
     elif name:
         skill, created = Skill.objects.get_or_create(name=name)
     else:
-        return JsonResponse({'error': 'skill_id or name required'}, status=400)
+        # Замечание 5: используем HTTPStatus вместо числового кода
+        return JsonResponse(
+            {'error': 'skill_id or name required'},
+            status=HTTPStatus.BAD_REQUEST
+        )
 
-    if skill not in user.skills.all():
+    # Замечание 6: используем filter().exists() вместо загрузки всех записей
+    if not user.skills.filter(pk=skill.pk).exists():
         user.skills.add(skill)
         added = True
 
@@ -158,11 +161,15 @@ def remove_skill(request, user_id, skill_id):
     """Удаляет навык из профиля пользователя."""
     user = get_object_or_404(User, pk=user_id)
     if request.user != user:
-        return JsonResponse({'error': 'Forbidden'}, status=403)
+        # Замечание 7: используем HTTPStatus вместо числового кода
+        return JsonResponse({'error': 'Forbidden'}, status=HTTPStatus.FORBIDDEN)
 
     skill = get_object_or_404(Skill, pk=skill_id)
-    if skill not in user.skills.all():
-        return JsonResponse({'error': 'Skill not found'}, status=400)
+
+    # Замечание 8: используем filter().exists() вместо загрузки всех записей
+    if not user.skills.filter(pk=skill.pk).exists():
+        # Замечание 9: используем HTTPStatus вместо числового кода
+        return JsonResponse({'error': 'Skill not found'}, status=HTTPStatus.BAD_REQUEST)
 
     user.skills.remove(skill)
     return JsonResponse({'status': 'ok'})

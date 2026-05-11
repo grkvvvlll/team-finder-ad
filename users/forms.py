@@ -1,19 +1,22 @@
 """Формы приложения users."""
 
-import re
-
 from django import forms
 from django.contrib.auth import authenticate
 from django.core.exceptions import ValidationError
 
 from .models import User
+from .utils import (
+    NAME_MAX_LENGTH,
+    clean_github_url,
+    clean_phone,
+)
 
 
 class RegisterForm(forms.Form):
     """Форма регистрации нового пользователя."""
 
-    name = forms.CharField(max_length=124, label='Имя')
-    surname = forms.CharField(max_length=124, label='Фамилия')
+    name = forms.CharField(max_length=NAME_MAX_LENGTH, label='Имя')
+    surname = forms.CharField(max_length=NAME_MAX_LENGTH, label='Фамилия')
     email = forms.EmailField(label='Email')
     password = forms.CharField(widget=forms.PasswordInput, label='Пароль')
 
@@ -24,6 +27,15 @@ class RegisterForm(forms.Form):
             raise ValidationError('Пользователь с таким email уже существует')
         return email
 
+    def save(self):
+        """Создаёт и возвращает нового пользователя."""
+        return User.objects.create_user(
+            email=self.cleaned_data['email'],
+            name=self.cleaned_data['name'],
+            surname=self.cleaned_data['surname'],
+            password=self.cleaned_data['password'],
+        )
+
 
 class LoginForm(forms.Form):
     """Форма входа в систему."""
@@ -32,7 +44,7 @@ class LoginForm(forms.Form):
     password = forms.CharField(widget=forms.PasswordInput, label='Пароль')
 
     def clean(self):
-        """Проверяет правильность введенных данных."""
+        """Проверяет правильность введённых данных."""
         cleaned = super().clean()
         email = cleaned.get('email')
         password = cleaned.get('password')
@@ -45,30 +57,6 @@ class LoginForm(forms.Form):
     def get_user(self):
         """Возвращает аутентифицированного пользователя."""
         return getattr(self, 'user', None)
-
-
-def validate_phone(value):
-    """Проверяет формат номера телефона."""
-    if not value:
-        return value
-    pattern = r'^(8\d{10}|\+7\d{10})$'
-    if not re.match(pattern, value):
-        raise ValidationError('Введите номер в формате 8XXXXXXXXXX или +7XXXXXXXXXX')
-    return value
-
-
-def normalize_phone(value):
-    """Приводит номер телефона к формату +7."""
-    if value and value.startswith('8'):
-        return '+7' + value[1:]
-    return value
-
-
-def validate_github_url(value):
-    """Проверяет что ссылка ведёт на GitHub."""
-    if value and 'github.com' not in value:
-        raise ValidationError('Ссылка должна вести на GitHub')
-    return value
 
 
 class EditProfileForm(forms.ModelForm):
@@ -98,24 +86,12 @@ class EditProfileForm(forms.ModelForm):
         super().__init__(*args, **kwargs)
 
     def clean_phone(self):
-        """Валидирует и приводит номер телефона к нужному формату."""
-        phone = self.cleaned_data.get('phone')
-        if not phone:
-            return None
-        validate_phone(phone)
-        phone = normalize_phone(phone)
-        qs = User.objects.filter(phone=phone)
-        if self.current_user:
-            qs = qs.exclude(pk=self.current_user.pk)
-        if qs.exists():
-            raise ValidationError('Этот номер телефона уже используется')
-        return phone
+        """Валидирует и нормализует номер телефона."""
+        return clean_phone(self.cleaned_data.get('phone'), self.current_user)
 
     def clean_github_url(self):
         """Валидирует ссылку на GitHub."""
-        url = self.cleaned_data.get('github_url', '')
-        validate_github_url(url)
-        return url
+        return clean_github_url(self.cleaned_data.get('github_url', ''))
 
 
 class ChangePasswordForm(forms.Form):

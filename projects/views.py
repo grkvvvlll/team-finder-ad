@@ -1,20 +1,21 @@
 """Представления приложения projects."""
 
+from http import HTTPStatus
+
 from django.contrib.auth.decorators import login_required
-from django.core.paginator import Paginator
 from django.http import JsonResponse
 from django.shortcuts import render, redirect, get_object_or_404
 from django.views.decorators.http import require_POST
 
 from .forms import ProjectForm
-from .models import Project
+from .models import Project, STATUS_OPEN, STATUS_CLOSED
+from .utils import paginate_queryset
 
 
 def project_list(request):
     """Отображает список всех проектов."""
-    projects = Project.objects.all().order_by('-created_at')
-    paginator = Paginator(projects, 12)
-    page_obj = paginator.get_page(request.GET.get('page'))
+    projects = Project.objects.select_related('owner').order_by('-created_at')
+    page_obj = paginate_queryset(projects, request)
     return render(request, 'projects/project_list.html', {
         'page_obj': page_obj,
         'projects': projects,
@@ -23,7 +24,10 @@ def project_list(request):
 
 def project_detail(request, project_id):
     """Отображает страницу отдельного проекта."""
-    project = get_object_or_404(Project, pk=project_id)
+    project = get_object_or_404(
+        Project.objects.select_related('owner').prefetch_related('participants'),
+        pk=project_id
+    )
     return render(request, 'projects/project-details.html', {'project': project})
 
 
@@ -62,11 +66,14 @@ def edit_project(request, project_id):
 def complete_project(request, project_id):
     """Завершает проект, меняя его статус на закрытый."""
     project = get_object_or_404(Project, pk=project_id, owner=request.user)
-    if project.status != 'open':
-        return JsonResponse({'error': 'Already closed'}, status=400)
-    project.status = 'closed'
+    if project.status != STATUS_OPEN:
+        return JsonResponse(
+            {'error': 'Already closed'},
+            status=HTTPStatus.BAD_REQUEST
+        )
+    project.status = STATUS_CLOSED
     project.save()
-    return JsonResponse({'status': 'ok', 'project_status': 'closed'})
+    return JsonResponse({'status': 'ok', 'project_status': STATUS_CLOSED})
 
 
 @login_required
@@ -75,7 +82,8 @@ def toggle_participate(request, project_id):
     """Добавляет или убирает пользователя из участников проекта."""
     project = get_object_or_404(Project, pk=project_id)
     user = request.user
-    if user in project.participants.all():
+    is_participant = project.participants.filter(pk=user.pk).exists()
+    if is_participant:
         project.participants.remove(user)
         participant = False
     else:

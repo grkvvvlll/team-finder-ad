@@ -1,6 +1,7 @@
 """Настройки админки для приложения users."""
 
 from django.contrib import admin
+
 from .models import User, Skill
 
 admin.site.register(User)

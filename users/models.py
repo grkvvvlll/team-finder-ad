@@ -1,53 +1,9 @@
 """Модели приложения users."""
 
-import io
-import random
-
 from django.contrib.auth.models import AbstractBaseUser, BaseUserManager, PermissionsMixin
-from django.core.files.base import ContentFile
 from django.db import models
-from PIL import Image, ImageDraw, ImageFont
 
-
-AVATAR_COLORS = [
-    '#4A90D9', '#7B68EE', '#20B2AA', '#3CB371',
-    '#CD853F', '#708090', '#E07B54', '#5C6BC0',
-]
-
-
-def generate_avatar(letter):
-    """Генерирует аватар с буквой на цветном фоне."""
-    size = 200
-    bg_color = random.choice(AVATAR_COLORS)
-    img = Image.new('RGB', (size, size), color=bg_color)
-    draw = ImageDraw.Draw(img)
-    letter = letter.upper()
-
-    font = None
-    for font_path in [
-        '/usr/share/fonts/truetype/dejavu/DejaVuSans-Bold.ttf',
-        '/usr/share/fonts/dejavu/DejaVuSans-Bold.ttf',
-        '/System/Library/Fonts/Helvetica.ttc',
-        '/Library/Fonts/Arial.ttf',
-        'C:/Windows/Fonts/arial.ttf',
-    ]:
-        try:
-            font = ImageFont.truetype(font_path, 100)
-            break
-        except (IOError, OSError):
-            continue
-    if font is None:
-        font = ImageFont.load_default()
-
-    bbox = draw.textbbox((0, 0), letter, font=font)
-    x = (size - (bbox[2] - bbox[0])) / 2 - bbox[0]
-    y = (size - (bbox[3] - bbox[1])) / 2 - bbox[1]
-    draw.text((x, y), letter, fill='white', font=font)
-
-    buf = io.BytesIO()
-    img.save(buf, format='PNG')
-    buf.seek(0)
-    return ContentFile(buf.read())
+from .utils import generate_avatar
 
 
 class UserManager(BaseUserManager):

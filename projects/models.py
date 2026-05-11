@@ -3,14 +3,17 @@
 from django.conf import settings
 from django.db import models
 
+STATUS_OPEN = 'open'
+STATUS_CLOSED = 'closed'
+
+STATUS_CHOICES = [
+    (STATUS_OPEN, 'Открыт'),
+    (STATUS_CLOSED, 'Закрыт'),
+]
+
 
 class Project(models.Model):
-    """Модель проекта."""
-
-    STATUS_CHOICES = [
-        ('open', 'Открыт'),
-        ('closed', 'Закрыт'),
-    ]
+    """Модель pet-проекта."""
 
     name = models.CharField(max_length=200)
     description = models.TextField(blank=True)
@@ -19,7 +22,7 @@ class Project(models.Model):
     )
     created_at = models.DateTimeField(auto_now_add=True)
     github_url = models.URLField(blank=True)
-    status = models.CharField(max_length=6, choices=STATUS_CHOICES, default='open')
+    status = models.CharField(max_length=6, choices=STATUS_CHOICES, default=STATUS_OPEN)
     participants = models.ManyToManyField(
         settings.AUTH_USER_MODEL, blank=True, related_name='participated_projects'
     )

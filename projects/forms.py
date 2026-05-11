@@ -1,16 +1,9 @@
 """Формы приложения projects."""
 
 from django import forms
-from django.core.exceptions import ValidationError
 
-from .models import Project
-
-
-def validate_github_url(value):
-    """Проверяет что ссылка ведёт на GitHub."""
-    if value and 'github.com' not in value:
-        raise ValidationError('Ссылка должна вести на GitHub')
-    return value
+from .models import Project, STATUS_CHOICES
+from .utils import validate_github_url
 
 
 class ProjectForm(forms.ModelForm):
@@ -24,7 +17,7 @@ class ProjectForm(forms.ModelForm):
         model = Project
         fields = ['name', 'description', 'github_url', 'status']
         widgets = {
-            'status': forms.Select(choices=Project.STATUS_CHOICES),
+            'status': forms.Select(choices=STATUS_CHOICES),
             'description': forms.Textarea(attrs={'rows': 4}),
         }
         labels = {
